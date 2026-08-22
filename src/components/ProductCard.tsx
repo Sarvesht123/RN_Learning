@@ -12,7 +12,7 @@ export function ProductCard({ product, compact = false }: { product: Product; co
   return (
     <Pressable
       style={[styles.card, compact && styles.compact]}
-      onPress={() => router.push({ pathname: '/product/[sku]', params: { sku: product.sku } })}
+      onPress={() => product.urlKey ? router.push(`/${product.urlKey}.html` as never) : router.push({ pathname: '/product/[sku]', params: { sku: product.sku } })}
     >
       <View style={styles.imageWrap}>
         <Image source={product.image} style={styles.image} resizeMode="contain" />

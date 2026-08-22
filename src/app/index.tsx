@@ -42,7 +42,7 @@ export default function Home() {
               key={category.id}
               style={styles.category}
               onPress={() =>
-                router.push({ pathname: '/category/[id]', params: { id: category.uid, title: category.name } })
+                router.push(`/${category.id}.html` as never)
               }
             >
               <Text style={styles.emoji}>◇</Text>

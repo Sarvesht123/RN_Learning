@@ -14,6 +14,9 @@ import { useCommerce } from '@/hooks/use-commerce';
 import { RequestState } from '@/components/RequestState';
 export default function ProductList() {
   const { id, title = 'Products' } = useLocalSearchParams<{ id: string; title?: string }>();
+  return <CategoryProductList id={id} title={title} />;
+}
+export function CategoryProductList({ id, title = 'Products' }: { id: string; title?: string }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({});

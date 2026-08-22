@@ -35,7 +35,7 @@ class MobileProducts implements ResolverInterface
         $collection->setStoreId((int)$store->getId())
             ->addStoreFilter((int)$store->getId())
             ->addAttributeToSelect([
-                'name', 'price', 'special_price', 'special_from_date', 'special_to_date',
+                'name', 'url_key', 'price', 'special_price', 'special_from_date', 'special_to_date',
                 'small_image', 'description', 'brand', 'product_country', 'size', 'am_product_label'
             ])
             ->addAttributeToFilter('status', Status::STATUS_ENABLED)
@@ -104,6 +104,7 @@ class MobileProducts implements ResolverInterface
                 'uid' => $this->uid->encode((string)$product->getId()),
                 'sku' => (string)$product->getSku(),
                 'name' => (string)$product->getName(),
+                'url_key' => (string)$product->getUrlKey(),
                 'brand' => $this->label($product, 'brand'),
                 'product_country' => $this->label($product, 'product_country'),
                 'size' => $this->label($product, 'size'),

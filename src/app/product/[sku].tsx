@@ -13,6 +13,9 @@ import { useCommerce } from '@/hooks/use-commerce';
 import { RequestState } from '@/components/RequestState';
 export default function ProductDetails() {
   const { sku } = useLocalSearchParams<{ sku: string }>();
+  return <ProductDetailsView sku={sku} />;
+}
+export function ProductDetailsView({ sku }: { sku: string }) {
   const result = useCommerce(() => fetchProduct(sku), [sku]);
   const related = useCommerce(() => fetchProducts({}, {}, 3), [sku]);
   const [quantity, setQuantity] = useState(1);

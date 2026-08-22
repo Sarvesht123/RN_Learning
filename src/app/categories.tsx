@@ -25,7 +25,7 @@ export default function Categories() {
               key={category.id}
               style={styles.item}
               onPress={() =>
-                router.push({ pathname: '/category/[id]', params: { id: category.uid, title: category.name } })
+                router.push(`/${category.id}.html` as never)
               }
             >
               <View style={styles.icon}>

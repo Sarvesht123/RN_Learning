@@ -3,6 +3,7 @@ export type Product = {
   uid?: string;
   sku: string;
   name: string;
+  urlKey?: string;
   category: string;
   brand: string;
   country: string;

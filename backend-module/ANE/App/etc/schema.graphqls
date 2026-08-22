@@ -33,6 +33,7 @@ type MobileProduct {
     uid: ID!
     sku: String!
     name: String!
+    url_key: String!
     brand: String
     product_country: String
     size: String
