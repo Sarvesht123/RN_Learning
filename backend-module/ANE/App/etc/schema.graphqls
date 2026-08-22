@@ -1,0 +1,46 @@
+type Query {
+    mobileProducts(
+        filter: MobileProductFilterInput
+        search: String
+        pageSize: Int = 20
+        currentPage: Int = 1
+        sort: MobileProductSortInput
+    ): MobileProductSearchResult! @resolver(class: "ANE\\App\\Model\\Resolver\\MobileProducts") @cache(cacheable: false)
+}
+
+input MobileProductFilterInput {
+    category_uid: String
+    sku: String
+    brand: String
+    product_country: String
+    size: String
+    max_price: Float
+    in_stock: Boolean = true
+    source_code: String
+}
+
+input MobileProductSortInput {
+    field: String = "name"
+    direction: SortEnum = ASC
+}
+
+type MobileProductSearchResult {
+    total_count: Int!
+    items: [MobileProduct!]!
+}
+
+type MobileProduct {
+    uid: ID!
+    sku: String!
+    name: String!
+    brand: String
+    product_country: String
+    size: String
+    stock_status: String!
+    am_product_label: String
+    description: String
+    small_image: String
+    price: Float!
+    regular_price: Float!
+    discount_percent: Float!
+}

@@ -1,0 +1,12 @@
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { FormField } from '@/components/FormField'; import { Header } from '@/components/Header';
+import { useCustomer } from '@/context/CustomerContext'; import { colors } from '@/constants/colors';
+export default function Register() {
+  const [firstName, setFirstName] = useState('Demo'); const [lastName, setLastName] = useState('Learner'); const [email, setEmail] = useState('demo@example.com'); const [password, setPassword] = useState('password'); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const { register } = useCustomer(); const router = useRouter();
+  const submit = async () => { try { setBusy(true); setError(''); await register({ firstName, lastName, email, password }); router.replace('/account'); } catch (e) { setError(e instanceof Error ? e.message : 'Registration failed'); } finally { setBusy(false); } };
+  return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Header title="Register" back /><Text style={styles.title}>Create account</Text><Text style={styles.copy}>This demonstrates a customer registration mutation.</Text><FormField label="First name" value={firstName} onChangeText={setFirstName} /><FormField label="Last name" value={lastName} onChangeText={setLastName} /><FormField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" /><FormField label="Password" value={password} onChangeText={setPassword} secureTextEntry />{error ? <Text style={styles.error}>{error}</Text> : null}<Pressable style={styles.button} onPress={submit} disabled={busy}>{busy ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Create Account</Text>}</Pressable></ScrollView></SafeAreaView>;
+}
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.background }, content: { padding: 16 }, title: { fontSize: 28, fontWeight: '900', marginTop: 16 }, copy: { color: colors.muted, marginVertical: 8, marginBottom: 20 }, error: { color: colors.primary, marginBottom: 10 }, button: { height: 52, backgroundColor: colors.primary, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, buttonText: { color: 'white', fontWeight: '900' } });

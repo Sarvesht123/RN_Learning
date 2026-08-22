@@ -1,5 +1,10 @@
 # Welcome to your Expo app 👋
 
+## Learning documentation
+
+- [Complete app and code guide](docs/COMPLETE_APP_GUIDE.md)
+- [Adobe Commerce GraphQL map](docs/ADOBE_COMMERCE_GRAPHQL.md)
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started

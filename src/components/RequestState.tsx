@@ -1,0 +1,3 @@
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'; import { colors } from '@/constants/colors';
+export function RequestState({ loading, error, retry }: { loading: boolean; error: string; retry: () => void }) { if (loading) return <ActivityIndicator style={styles.space} color={colors.primary} />; if (!error) return null; return <View style={styles.space}><Text style={styles.error}>{error}</Text><Pressable onPress={retry}><Text style={styles.retry}>Try again</Text></Pressable></View>; }
+const styles = StyleSheet.create({ space: { marginVertical: 24, alignItems: 'center' }, error: { textAlign: 'center', color: colors.primary }, retry: { color: colors.primary, fontWeight: '800', marginTop: 10 } });

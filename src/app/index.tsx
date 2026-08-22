@@ -1,98 +1,98 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+import { useRouter } from 'expo-router';
+import { BottomTabs } from '@/components/BottomTabs';
+import { DeliverySelector } from '@/components/DeliverySelector';
+import { Header } from '@/components/Header';
+import { HeroBanner } from '@/components/HeroBanner';
+import { ProductCard } from '@/components/ProductCard';
+import { SearchBar } from '@/components/SearchBar';
+import { SectionTitle } from '@/components/SectionTitle';
+import { colors } from '@/constants/colors';
+import { fetchCategories, fetchHomeBanners, fetchProducts } from '@/services/commerce';
+import { useCommerce } from '@/hooks/use-commerce';
+import { RequestState } from '@/components/RequestState';
+export default function Home() {
+  const router = useRouter();
+  const [delivery, setDelivery] = useState('2-Hour Express');
+  const categoryResult = useCommerce(fetchCategories, []);
+  const productResult = useCommerce(() => fetchProducts({}, {}, 8), []);
+  const bannerResult = useCommerce(fetchHomeBanners, []);
+  const categories = categoryResult.data ?? [];
+  const products = productResult.data ?? [];
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Header />
+        <DeliverySelector selected={delivery} onSelect={setDelivery} />
+        <View style={styles.space}>
+          <SearchBar editable={false} />
+        </View>
+        <HeroBanner title={bannerResult.data?.[0]?.title} image={bannerResult.data?.[0]?.image} />
+        <RequestState loading={categoryResult.loading || productResult.loading} error={categoryResult.error || productResult.error} retry={() => { void categoryResult.retry(); void productResult.retry(); }} />
+        <SectionTitle title="Shop by category" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categories}
+        >
+          {categories.slice(0, 4).map((category) => (
+            <Pressable
+              key={category.id}
+              style={styles.category}
+              onPress={() =>
+                router.push({ pathname: '/category/[id]', params: { id: category.uid, title: category.name } })
+              }
+            >
+              <Text style={styles.emoji}>◇</Text>
+              <Text style={styles.categoryName}>{category.name}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <SectionTitle title="Our Top Picks" subtitle="3 products" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.row}
+        >
+          {products.slice(0, 3).map((product) => (
+            <ProductCard key={product.sku} product={product} compact />
+          ))}
+        </ScrollView>
+        <View style={styles.banner}>
+          <HeroBanner promo />
+        </View>
+        <SectionTitle title="Something different" subtitle="3 products" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.row}
+        >
+          {products.slice(4, 7).map((product) => (
+            <ProductCard key={product.sku} product={product} compact />
+          ))}
+        </ScrollView>
+      </ScrollView>
+      <BottomTabs />
+    </SafeAreaView>
   );
 }
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
+  safe: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: 16, paddingBottom: 25 },
+  space: { marginVertical: 16 },
+  categories: { gap: 10 },
+  category: {
+    width: 92,
+    height: 98,
+    backgroundColor: colors.white,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  emoji: { fontSize: 31 },
+  categoryName: { fontSize: 12, fontWeight: '700', marginTop: 7, textAlign: 'center' },
+  row: { gap: 10 },
+  banner: { marginTop: 24 },
 });
