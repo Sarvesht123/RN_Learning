@@ -1,0 +1,86 @@
+{
+  "buildFiles": [
+    "/home/sarvesht/RN_Learning/node_modules/react-native-config/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/home/sarvesht/RN_Learning/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/home/sarvesht/RN_Learning/node_modules/react-native-onesignal/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/home/sarvesht/RN_Learning/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt",
+    "/home/sarvesht/RN_Learning/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt",
+    "/home/sarvesht/RN_Learning/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/sarvesht/Android/Sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/sarvesht/RN_Learning/android/app/.cxx/RelWithDebInfo/2k28s682/x86",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/sarvesht/Android/Sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/sarvesht/RN_Learning/android/app/.cxx/RelWithDebInfo/2k28s682/x86",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "appmodules::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "x86",
+      "artifactName": "appmodules",
+      "output": "/home/sarvesht/RN_Learning/android/app/build/intermediates/cxx/RelWithDebInfo/2k28s682/obj/x86/libappmodules.so",
+      "runtimeFiles": [
+        "/home/sarvesht/RN_Learning/android/app/build/intermediates/cxx/RelWithDebInfo/2k28s682/obj/x86/libreact_codegen_safeareacontext.so",
+        "/home/sarvesht/RN_Learning/android/app/build/intermediates/cxx/RelWithDebInfo/2k28s682/obj/x86/libreact_codegen_rnscreens.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/f3bb8c0980a8632bf0fb9e09ca917a5e/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.x86/libfbjni.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/bd11b364dde62d0f8b6daff672ac423b/transformed/react-android-0.86.2-release/prefab/modules/jsi/libs/android.x86/libjsi.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/bd11b364dde62d0f8b6daff672ac423b/transformed/react-android-0.86.2-release/prefab/modules/reactnative/libs/android.x86/libreactnative.so"
+      ]
+    },
+    "react_codegen_RNCConfigSpec::@89f1b79ed4954e2f2cff": {
+      "toolchain": "toolchain",
+      "abi": "x86",
+      "artifactName": "react_codegen_RNCConfigSpec"
+    },
+    "react_codegen_RNOneSignalSpec::@c8beb593ba2a9b201f0b": {
+      "toolchain": "toolchain",
+      "abi": "x86",
+      "artifactName": "react_codegen_RNOneSignalSpec"
+    },
+    "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec": {
+      "toolchain": "toolchain",
+      "abi": "x86",
+      "artifactName": "react_codegen_rngesturehandler_codegen"
+    },
+    "react_codegen_rnscreens::@25bcbd507e98d3a854ad": {
+      "toolchain": "toolchain",
+      "abi": "x86",
+      "artifactName": "react_codegen_rnscreens",
+      "output": "/home/sarvesht/RN_Learning/android/app/build/intermediates/cxx/RelWithDebInfo/2k28s682/obj/x86/libreact_codegen_rnscreens.so",
+      "runtimeFiles": [
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/bd11b364dde62d0f8b6daff672ac423b/transformed/react-android-0.86.2-release/prefab/modules/reactnative/libs/android.x86/libreactnative.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/bd11b364dde62d0f8b6daff672ac423b/transformed/react-android-0.86.2-release/prefab/modules/jsi/libs/android.x86/libjsi.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/f3bb8c0980a8632bf0fb9e09ca917a5e/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.x86/libfbjni.so"
+      ]
+    },
+    "react_codegen_safeareacontext::@7984cd80db47aa7b952a": {
+      "toolchain": "toolchain",
+      "abi": "x86",
+      "artifactName": "react_codegen_safeareacontext",
+      "output": "/home/sarvesht/RN_Learning/android/app/build/intermediates/cxx/RelWithDebInfo/2k28s682/obj/x86/libreact_codegen_safeareacontext.so",
+      "runtimeFiles": [
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/f3bb8c0980a8632bf0fb9e09ca917a5e/transformed/fbjni-0.7.0/prefab/modules/fbjni/libs/android.x86/libfbjni.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/bd11b364dde62d0f8b6daff672ac423b/transformed/react-android-0.86.2-release/prefab/modules/jsi/libs/android.x86/libjsi.so",
+        "/home/sarvesht/.gradle/caches/9.3.1/transforms/bd11b364dde62d0f8b6daff672ac423b/transformed/react-android-0.86.2-release/prefab/modules/reactnative/libs/android.x86/libreactnative.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/home/sarvesht/Android/Sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/home/sarvesht/Android/Sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

@@ -1,726 +1,710 @@
-# RN Learning Storefront: Complete Code Guide
+# RN Learning Storefront: Complete App Guide
 
-This document explains the current Expo/React Native storefront and its Adobe Commerce integration. It is written for learning: start with the architecture and request flow, then read the page or file you are studying beside this guide.
+This guide describes the current Android/iOS application after its migration to bare React Native. It covers the application structure, React Navigation, Magento GraphQL boundary, state, native services, build configuration, and known production work.
 
-## 1. What the application contains
+For a migration-specific file and dependency summary, also see [BARE_REACT_NATIVE_MIGRATION.md](BARE_REACT_NATIVE_MIGRATION.md).
 
-The application is an Expo SDK 57 React Native project using:
+## 1. Technology and responsibility boundaries
 
-- Expo Router for file-based routing.
-- React Context for customer, wishlist, and local UI cart state.
-- Adobe Commerce GraphQL for categories, products, CMS, banners, customers, carts, checkout, and orders.
-- A custom read-only Magento query named `mobileProducts` for product catalog reads without Catalog Service.
-- A Metro development proxy for browser access to the local Magento virtual host.
-- Local fixture data only when mock mode is explicitly enabled.
+The mobile application uses:
 
-The application never connects directly to the database. React Native sends GraphQL operations to Magento; Magento resolvers use Magento collections, repositories, validation, inventory, quote, and order services.
+- React Native Community CLI 0.86.2.
+- React 19.2.3 and TypeScript.
+- React Navigation 7 native stacks and bottom tabs.
+- React Context for customer, wishlist, and local cart state.
+- Adobe Commerce/Magento GraphQL as the commerce backend.
+- `react-native-config` for environment-specific native configuration.
+- OneSignal, Klaviyo, and native location service abstractions.
+- A provider-neutral payment service boundary.
 
-## 2. Project map
-
-```text
-src/
-  app/                    Expo Router pages
-  components/             Reusable presentation and interaction components
-  constants/              Shared colors and theme values
-  context/                Customer, wishlist, and cart state
-  data/                   Optional offline learning fixtures
-  hooks/                  Reusable asynchronous request and theme hooks
-  services/commerce.ts    All storefront GraphQL and response mapping
-
-backend-module/ANE/App/
-  etc/schema.graphqls     Custom mobile product GraphQL contract
-  Model/Resolver/
-    MobileProducts.php    Read-only Magento product resolver
-
-metro.config.js           Web development GraphQL proxy
-.env.example              Runtime configuration example
-```
-
-## 3. Runtime configuration
-
-The values are defined in `.env.example`.
-
-### `EXPO_PUBLIC_GRAPHQL_URL`
-
-The core Magento GraphQL endpoint. The local environment uses:
+The React/Next.js website remains a separate frontend. Both frontends consume Magento APIs:
 
 ```text
-http://aed.staging.com/graphql
+Adobe Commerce / Magento
+          |
+       GraphQL
+      /       \
+Website/PWA   React Native
+              Android/iOS
 ```
 
-Core GraphQL handles customer authentication, CMS, catalog categories, carts, shipping, payment, and orders.
+The app never connects directly to the Magento database. React Native sends GraphQL operations to Magento, where resolvers and Magento services perform authorization, validation, catalog, inventory, quote, and order work.
 
-### `EXPO_PUBLIC_STORE_CODE`
-
-The Magento store-view code. It defaults to `default`. When it is not `default`, `commerce.ts` sends it in the `Store` request header.
-
-### `EXPO_PUBLIC_SOURCE_CODE`
-
-The inventory source used to decide which products are displayed as available. It defaults to `dip_ds`, matching the learning checkout location/source. The same source must be assigned to the Magento cart before adding products.
-
-### `EXPO_PUBLIC_USE_MOCKS`
-
-When `true`, selected catalog/customer/order functions use local fixtures. It should be `false` for Magento testing.
-
-### `EXPO_PUBLIC_ALLOW_FIXTURE_FALLBACK`
-
-When `true`, failed product/category reads may fall back to local fixture data. It defaults to disabled because fixture SKUs do not exist in Magento and therefore must never enter a live Magento checkout.
-
-## 4. Metro web proxy
-
-File: `metro.config.js`
-
-Browsers enforce CORS. Apache only permits selected origins, and the Magento host uses port 80 without HTTPS. During Expo web development, `commerce.ts` uses `/graphql-proxy` instead of calling Magento directly.
-
-`config.server.enhanceMiddleware` wraps Metro's normal request handler. For normal URLs, it calls `enhanced(request, response, next)`. For `/graphql-proxy`, it:
-
-1. Copies the browser request headers.
-2. changes the `Host` header to `aed.staging.com`;
-3. removes browser `Origin` and `Referer` headers;
-4. creates a Node HTTP request to `aed.staging.com:80/graphql`;
-5. pipes the GraphQL request body to Magento;
-6. pipes Magento's status, headers, and body back to the browser;
-7. returns a JSON GraphQL-style error if the proxy connection fails.
-
-This proxy is for local web development. Native iOS/Android requests use `EXPO_PUBLIC_GRAPHQL_URL` directly.
-
-## 5. Root layout and global providers
-
-File: `src/app/_layout.tsx`
-
-`RootLayout()` is the root component for every route.
-
-Provider nesting:
+## 2. Repository map
 
 ```text
-CustomerProvider
-  WishlistProvider
-    CartProvider
-      StatusBar
-      Stack
+RN_Learning/
+  android/                         Native Android Gradle project
+  ios/                             Native iOS Xcode/CocoaPods project
+  assets/                          Images and application artwork
+  backend-module/ANE/App/          Custom Magento mobile query module
+  config/                          Web/Magento infrastructure examples
+  docs/                            Architecture and integration documentation
+
+  src/
+    api/
+      client/graphqlClient.ts      Shared GraphQL HTTP transport
+      graphql/index.ts             GraphQL transport exports
+      magento/index.ts             Magento API compatibility exports
+    components/                    Reusable React Native UI
+    config/env.ts                  Typed native environment access
+    constants/colors.ts            Shared application palette
+    context/                       Customer, cart, and wishlist state
+    data/                          Optional learning fixtures
+    hooks/use-commerce.ts          Reusable asynchronous request hook
+    navigation/                    Typed navigators and deep-link mapping
+    screens/                       Feature-oriented application screens
+    services/
+      commerce.ts                  Magento operations and response mapping
+      magento/                     Magento service exports
+      notifications/              OneSignal abstraction
+      klaviyo/                     Klaviyo event abstraction
+      location/                    Runtime permissions and geolocation
+      payments/                    Pluggable payment contract
+
+  App.tsx                          Providers, SDK startup, root navigator
+  index.js                         React Native AppRegistry entry
+  app.json                         Native component/display name
+  babel.config.js                 React Native preset and `@` alias
+  metro.config.js                 React Native Metro configuration
+  package.json                    Scripts and dependencies
+  tsconfig.json                   Strict TypeScript configuration
+  .env.example                    Public configuration template
 ```
 
-- `CustomerProvider` makes authentication state available everywhere.
-- `WishlistProvider` stores locally selected wishlist SKUs.
-- `CartProvider` stores the products and quantities currently shown in the app cart.
-- `StatusBar style="dark"` sets the system status-bar appearance.
-- `Stack` creates Expo Router stack navigation.
-- `headerShown: false` disables Expo's default header because the project uses its own `Header` component.
-- `contentStyle.backgroundColor` provides a global page background.
+Expo Router and `src/app` are no longer part of the runtime architecture. `android/` and `ios/` are source projects and must be committed; only their generated build products are ignored.
 
-## 6. Shared data types
+## 3. Installation and environment
 
-### `Product`
+Use Node 22.11 or newer. React Native 0.86 declares Node 22 as its supported minimum.
 
-File: `src/data/products.ts`
+```bash
+cp .env.example .env
+npm install
+```
 
-Important properties:
+Do not commit `.env`, server secrets, signing keys, APNs keys, or store credentials.
 
-- `uid`: Magento GraphQL encoded product ID.
-- `sku`: stable Magento product identifier used by PDP, cart, and checkout.
-- `name`: customer-facing name.
-- `category`: fixture category identifier; live mapped products currently use an empty string.
-- `brand`, `country`, `size`: displayed product metadata.
-- `price`: final/special Magento price.
-- `oldPrice`: regular Magento price.
-- `discount`: calculated percentage reduction.
-- `image`: primary React Native image source.
-- `images`: optional gallery image sources.
-- `description`: plain text converted from Magento HTML.
-- `available`: whether the product can be sold.
-- `label`: Magento/Amasty label value.
-- `appearance`, `nose`, `taste`, `finish`: learning PDP fields present in fixtures.
+### Environment variables
 
-### `CartItem`
+`MAGENTO_GRAPHQL_URL`
 
-File: `src/context/CartContext.tsx`
+- Required Magento endpoint, including `/graphql`.
+- Example placeholder: `https://commerce.example.com/graphql`.
+- There is no hardcoded production or staging fallback.
+
+`MAGENTO_STORE_CODE`
+
+- Magento store-view code.
+- Defaults to `default`.
+- Non-default values are sent through the `Store` request header.
+
+`MAGENTO_SOURCE_CODE`
+
+- Inventory source used by source-aware product availability and checkout.
+- Must match a source configured in Magento.
+
+`USE_MOCKS`
+
+- Uses local learning fixtures when set to `true`.
+- Keep `false` for real Magento integration testing.
+
+`ALLOW_FIXTURE_FALLBACK`
+
+- Allows selected catalog reads to fall back after an API failure.
+- Keep disabled for production because fixture SKUs may not exist in Magento.
+
+`ONESIGNAL_APP_ID`
+
+- Public OneSignal application identifier.
+- An empty value disables JavaScript initialization.
+
+`KLAVIYO_PUBLIC_API_KEY`
+
+- Klaviyo public Site ID.
+- An empty value disables JavaScript initialization.
+
+`src/config/env.ts` is the single typed access point for these values. `react-native-config` injects them into Android and iOS builds.
+
+## 4. Application startup
+
+### `index.js`
+
+The Community CLI entry imports `App` and registers `RNLearningNative` through `AppRegistry`. The registered name must match `app.json` and the module name used by both native projects.
+
+### `App.tsx`
+
+`App` initializes OneSignal and Klaviyo once, then builds the shared provider tree:
+
+```text
+GestureHandlerRootView
+  SafeAreaProvider
+    CustomerProvider
+      WishlistProvider
+        CartProvider
+          StatusBar
+          RootNavigator
+```
+
+- `GestureHandlerRootView` supports React Navigation/native gesture integrations.
+- `SafeAreaProvider` supplies correct screen insets.
+- `CustomerProvider` owns current customer state.
+- `WishlistProvider` owns locally saved SKUs.
+- `CartProvider` owns the browsing cart.
+- `RootNavigator` owns all application navigation and link handling.
+
+## 5. Navigation architecture
+
+Navigation code lives under `src/navigation`.
+
+```text
+RootNavigator
+  MainNavigator
+    BottomTabNavigator
+      Home
+      Categories
+      Cart
+      Account
+      Info
+    Category
+    Product
+    Search
+    Checkout
+    Orders
+    OrderDetails
+    OrderSuccess
+    Wishlist
+    SeoRoute
+  AuthNavigator
+    Login
+    Register
+    ForgotPassword
+```
+
+The auth navigator is presented from the root as a modal flow. This permits guest catalog browsing while keeping authentication screens grouped separately.
+
+### Typed parameters
+
+`src/navigation/types.ts` defines:
+
+- `RootStackParamList`
+- `AuthStackParamList`
+- `MainStackParamList`
+- `BottomTabParamList`
+
+Important parameterized routes are:
 
 ```ts
-type CartItem = Product & { quantity: number };
+Category: { id: string; title?: string };
+Product: { sku: string };
+OrderDetails: { orderNumber: string };
+OrderSuccess: { number: string; total: string; delivery: string };
+SeoRoute: { seoPath: string | string[] };
 ```
 
-It contains every `Product` property plus the quantity selected in the app.
+`src/navigation/router.ts` is a temporary compatibility layer that translates the former path-shaped navigation calls into typed React Navigation destinations. New code should prefer direct typed `navigation.navigate(...)` calls.
 
-### Commerce service objects
+### Route mapping
 
-File: `src/services/commerce.ts`
+| User destination | React Navigation screen |
+| --- | --- |
+| Home | `Main > Tabs > Home` |
+| Categories | `Main > Tabs > Categories` |
+| Category/PLP | `Main > Category { id, title? }` |
+| Product/PDP | `Main > Product { sku }` |
+| Search | `Main > Search` |
+| Cart | `Main > Tabs > Cart` |
+| Checkout | `Main > Checkout` |
+| Account | `Main > Tabs > Account` |
+| Orders | `Main > Orders` |
+| Order detail | `Main > OrderDetails { orderNumber }` |
+| Order success | `Main > OrderSuccess { ... }` |
+| Wishlist | `Main > Wishlist` |
+| CMS information | `Main > Tabs > Info` |
+| Login/register/reset | `Auth > ...` |
+| Magento SEO URL | `Main > SeoRoute` |
 
-- `ProductFilter`: optional category UID, search phrase, brand, country, maximum price, stock flag, and source code.
-- `Category`: route ID, encoded Magento UID, name, product count, and child categories.
-- `CmsPage`: identifier, title, heading, and cleaned text content.
-- `Banner`: ID, title, destination URL, and mobile image URL.
-- `Customer`: normalized ID, first name, last name, and email.
-- `OrderInput`: cart SKU/quantity pairs, address, phone, delivery selection, payment selection, and coupon.
-- `Order`: order number, total, and effective delivery method returned to the success screen.
-- `MobileApiProduct`: exact raw shape returned by the custom Magento `mobileProducts` query.
+## 6. Deep links
 
-## 7. Context state
+`src/navigation/linking.ts` supports the custom scheme:
 
-### Customer context
+```text
+ane://product/{sku}
+ane://category/{id}
+ane://cart
+ane://checkout
+```
 
-File: `src/context/CustomerContext.tsx`
+It also contains `https://app.example.com` as an explicit placeholder for verified links.
 
-State:
+Android intent filters are in `android/app/src/main/AndroidManifest.xml`. Before enabling `android:autoVerify`, replace the placeholder host and publish a matching `/.well-known/assetlinks.json` containing the production package and signing certificate.
 
-- `customer`: `Customer | null`. `null` means signed out.
+iOS registers the `ane` scheme in `Info.plist`. `AppDelegate.swift` forwards custom URLs and universal-link activities to `RCTLinkingManager`. For production universal links, add the Associated Domains capability and publish the matching `apple-app-site-association` file.
 
-Functions:
+## 7. Shared GraphQL transport
 
-- `signIn(email, password)`: calls `loginCustomer`, then stores the returned customer.
-- `register(input)`: calls `registerCustomer`, then stores the returned customer.
-- `signOut()`: clears the React customer object.
-- `useCustomer()`: convenience hook that reads the context and throws when used outside `CustomerProvider`.
+File: `src/api/client/graphqlClient.ts`
 
-The Magento token is held by `commerce.ts` in the module-level `customerToken` variable. It is intentionally memory-only in this learning version. A production app should use Expo SecureStore and revoke/clear the token on logout.
+`graphqlRequest<T>(query, variables)` is the generic Magento transport. It:
 
-### Cart context
+1. reads the required endpoint from `env.magentoGraphqlUrl`;
+2. creates an `AbortController` with an eight-second timeout;
+3. sends a JSON `POST` containing `{ query, variables }`;
+4. sends the optional Magento store-view header;
+5. sends the bearer token for authenticated operations;
+6. converts HTTP and GraphQL errors into thrown `Error` objects;
+7. returns typed `payload.data`.
 
-File: `src/context/CartContext.tsx`
+`setGraphqlBearerToken(token)` changes the authorization token used by subsequent requests.
 
-State:
+Screens and components must not embed GraphQL strings. They call functions from the Magento service boundary.
 
-- `items`: local `CartItem[]`, initially empty.
-
-Functions:
-
-- `addItem(product)`: increments an existing SKU or appends a new item with quantity `1`.
-- `changeQuantity(sku, amount)`: adds `amount` and clamps the result to at least `1`.
-- `removeItem(sku)`: removes the matching SKU.
-- `clearCart()`: replaces the local array with an empty array after successful checkout.
-- `useCart()`: retrieves the cart context.
-
-The cart is local while browsing. `placeOrder()` reconciles it with `customerCart` immediately before checkout.
-
-### Wishlist context
-
-File: `src/context/WishlistContext.tsx`
-
-State:
-
-- `skus`: array of saved product SKUs.
-
-Functions:
-
-- `toggle(sku)`: removes an existing SKU or appends a missing SKU.
-- `has(sku)`: returns whether a product is saved.
-- `useWishlist()`: retrieves the context.
-
-The current wishlist is local learning state. It does not yet call Magento's authenticated wishlist mutations.
-
-## 8. Asynchronous request hook
-
-File: `src/hooks/use-commerce.ts`
-
-`useCommerce<T>(loader, dependencies)` standardizes screen requests.
-
-State:
-
-- `data`: successful value of generic type `T`.
-- `loading`: `true` while the loader is executing.
-- `error`: normalized error message.
-
-`load`:
-
-1. sets loading;
-2. clears the previous error;
-3. awaits `loader()`;
-4. stores returned data;
-5. stores a readable message on failure;
-6. always clears loading.
-
-The `dependencies` argument controls when `load` is recreated. `useEffect` runs the request on first render and whenever `load` changes. The returned `retry` is the same `load` callback used by `RequestState`.
-
-## 9. Commerce GraphQL service
+## 8. Magento commerce service
 
 File: `src/services/commerce.ts`
 
-This is the application's backend boundary. Pages should call service functions rather than embedding GraphQL strings.
+This file retains the existing Magento business operations and app-specific response mapping. `src/api/magento/index.ts` and `src/services/magento/index.ts` provide grouped exports without duplicating operations.
 
-### Endpoint variables
+### Important types
 
-- `commerceEndpoint`: configured Magento URL.
-- `endpoint`: `/graphql-proxy` on development web; otherwise `commerceEndpoint`.
-- `storeCode`: current Magento store view.
-- `useFixtures`: explicit mock-mode flag.
-- `allowFallback`: explicit fixture-fallback flag.
-- `checkoutSourceCode`: inventory source used by product reads.
-- `customerToken`: in-memory bearer token.
+- `ProductFilter`: category UID, search, brand, country, maximum price, stock flag, and source.
+- `Category`: route ID, Magento UID, name, count, and children.
+- `CmsPage`: identifier, title, heading, and plain content.
+- `Banner`: ID, title, destination, and image.
+- `Customer`: normalized customer identity.
+- `OrderInput`: SKU quantities, address, phone, delivery, payment, and coupon.
+- `Order`: Magento order number, final total, and effective delivery method.
+- `MobileApiProduct`: raw custom-query product response.
 
-### `setCustomerToken(token)`
+### Product normalization
 
-Updates the token used by authenticated GraphQL requests.
+`stripHtml` removes markup and collapses whitespace. `mapMobileProduct` converts Magento snake-case fields into the UI `Product` type, creates native image sources, normalizes optional values, converts stock status to a boolean, and calculates display labels.
 
-### `graphql<T>(query, variables)`
+### Catalog functions
 
-The private request function used by every service operation.
+`fetchProducts(filter, sort, pageSize)`
 
-- Creates `AbortController`.
-- Starts an eight-second timeout.
-- sends `POST` with JSON `{ query, variables }`.
-- Adds `Content-Type`.
-- Adds `Store` for non-default store views.
-- Adds `Authorization: Bearer ...` after login.
-- distinguishes timeout, connection, HTTP, and GraphQL errors.
-- returns `payload.data` typed as `T`.
+- Creates `MobileProductFilterInput`.
+- Applies category, brand, country, price, inventory source, and stock filters.
+- Converts UI sorting into Magento field/direction input.
+- Executes `mobileProducts` and maps the result.
 
-### Product mapping
+`fetchProduct(sku)`
 
-`stripHtml(value)` removes markup and collapses whitespace.
+- Loads a single SKU through `mobileProducts`.
+- Allows unavailable products to resolve so PDP can show their state.
 
-`mapMobileProduct(item)` translates Magento's snake-case response into the UI `Product` object. It also:
+`fetchCategories()`
 
-- removes the leading `" - "` present in some Magento names;
-- maps `small_image` to `{ uri: ... }`;
-- substitutes the splash asset when no image exists;
-- rounds discount percentage;
-- converts `IN_STOCK` to a boolean;
-- supplies safe empty values for optional PDP fields.
+- Calls Magento's standard `categories` query below root category `2`.
+- Maps top-level and child categories.
 
-### `fetchProducts(filter, sort, pageSize)`
+`fetchSeoRoute(key)`
 
-Builds `MobileProductFilterInput`:
+- Calls Magento `route(url: ...)`.
+- Resolves an SEO path into either category UID or product SKU.
+- Powers `SeoRouteScreen` without Expo Router catch-all files.
 
-- `category_uid` from the category route;
-- `brand`, `product_country`, and `max_price` from filter UI;
-- `in_stock` unless explicitly disabled;
-- `source_code` so displayed products have positive inventory at the checkout source.
+`fetchCmsPage(identifier)` loads and cleans a Magento CMS page.
 
-It converts the UI sort object, such as `{ price: 'DESC' }`, into Magento's `{ field: 'price', direction: 'DESC' }`, executes `mobileProducts`, and maps each result.
+`fetchHomeBanners()` reads `storeConfig.home_slider`, then maps the ANE banner query.
 
-### `fetchProduct(sku)`
+### Customer functions
 
-Loads one Magento product using `mobileProducts(filter: { sku })`. It sets `in_stock: false` so a PDP can still resolve an unavailable SKU and show its state.
+`loginCustomer(email, password)`:
 
-### `fetchCategories()`
+1. calls `generateCustomerToken`;
+2. installs the token in the commerce and GraphQL clients;
+3. loads authenticated `customer`;
+4. maps the customer to the app shape.
 
-Calls Magento's standard `categories` query with root `parent_id = 2`. It returns top categories plus children. Product counts were removed from this query because custom recursive count resolvers made the response too slow.
+`registerCustomer(input)` calls `createCustomerV2`, then signs the customer in.
 
-### `fetchCmsPage(identifier)`
+`requestPasswordReset(email)` calls Magento's `requestPasswordResetEmail` mutation.
 
-Uses Magento `cmsPage`, then returns plain text through `stripHtml`.
+### Checkout orchestration
 
-### `fetchHomeBanners()`
+`placeOrder(input)` preserves the existing complete checkout sequence:
 
-1. Reads `storeConfig.home_slider`.
-2. Calls ANE `getSliderBanners(slider_id)`.
-3. maps banner IDs, titles, URLs, and mobile images.
+1. Reject signed-out or empty checkout.
+2. Read customer addresses and `customerCart`.
+3. Select the default or first saved shipping address.
+4. Load ANE delivery locations.
+5. Match the selected address to a delivery location.
+6. Load express, scheduled, and collection source details.
+7. Convert the UI delivery choice to Magento delivery codes.
+8. Select a supported inventory source.
+9. Call `assignCustomerSource` before item changes.
+10. Create the desired local SKU/quantity map.
+11. Remove server items absent locally.
+12. Update changed server quantities.
+13. Add missing local items.
+14. Surface `addProductsToCart.user_errors`.
+15. Set shipping and billing addresses.
+16. Search and select an available delivery slot.
+17. Read shipping methods, payment methods, and final prices.
+18. Choose an available shipping method.
+19. Match the desired cash/card payment method.
+20. Apply a non-empty coupon.
+21. Set shipping and payment methods.
+22. Call `placeOrder`.
+23. Validate and return `orderV2.number` plus the final total.
 
-### `loginCustomer(email, password)`
+Magento remains authoritative for inventory, shipping, payment availability, discounts, tax, and order totals.
 
-1. Calls `generateCustomerToken`.
-2. stores the token.
-3. calls authenticated `customer`.
-4. maps `firstname` and `lastname` to the app's camel-case object.
-
-### `registerCustomer(input)`
-
-Calls `createCustomerV2` with Magento and ANE customer fields, then calls `loginCustomer` so successful registration also signs the user in.
-
-### `placeOrder(input)`
-
-This is the full Magento checkout orchestration.
-
-1. Rejects signed-out or empty checkout.
-2. Reads `customer` addresses and `customerCart` items.
-3. selects default shipping address, falling back to the first address.
-4. loads active ANE delivery locations.
-5. matches the address, falls back to JVC for the learning location, then the first location.
-6. loads location/source details using configured latitude and longitude.
-7. converts UI delivery text into `express`, `scheduled`, or `click_n_collect`.
-8. chooses the requested source or an available scheduled/express fallback.
-9. calls `assignCustomerSource` before changing items. This ordering is essential because inventory must be validated against the assigned source.
-10. creates `desired`, a `Map<sku, quantity>` from the local cart.
-11. removes server-cart items not present locally.
-12. updates server quantities that differ.
-13. adds SKUs missing from the server cart.
-14. surfaces `addProductsToCart.user_errors` instead of silently proceeding.
-15. sets shipping and billing addresses.
-16. calls `searchSlots` and assigns the first available slot.
-17. reads available shipping and payment methods plus grand total.
-18. chooses the first available shipping method.
-19. tries to match cash/card from the UI label, then falls back to the first payment method.
-20. applies a non-empty coupon.
-21. sets shipping and payment methods.
-22. calls `placeOrder`.
-23. checks `orderV2.number` and returns the real order details.
-
-Important checkout variables:
-
-- `cartId`: masked Magento customer-cart ID.
-- `address`: selected saved customer address.
-- `desired`: local cart quantities keyed by SKU.
-- `location`: selected ANE place of delivery.
-- `deliveryCode`: delivery type requested by the UI.
-- `effectiveDelivery`: delivery type actually supported at the location.
-- `effectiveSource`: inventory source assigned to the quote.
-- `slot`: first currently available delivery slot.
-- `shipping`: selected carrier/method pair.
-- `payment`: selected Magento payment code.
-- `options.cart.prices.grand_total`: final total returned to the success screen.
-
-## 10. Magento `mobileProducts` backend
+## 9. Custom Magento `mobileProducts` query
 
 Files:
 
 - `backend-module/ANE/App/etc/schema.graphqls`
 - `backend-module/ANE/App/Model/Resolver/MobileProducts.php`
 
-The same files are installed under `/var/www/html/AdobeCommerce/app/code/ANE/App`.
+The custom query provides a deliberately small mobile DTO instead of Magento `ProductInterface`. It supports category UID, SKU, brand, country, size, price, stock, inventory source, search, paging, and name/price sorting.
 
-### GraphQL schema
+The PHP resolver:
 
-`mobileProducts` accepts:
+1. validates and normalizes inputs;
+2. creates a store-scoped EAV product collection;
+3. selects required attributes only;
+4. filters enabled, catalog-visible products;
+5. decodes GraphQL category UIDs;
+6. applies SKU/search/attribute/price filters;
+7. restricts sorting to approved fields;
+8. applies source-aware MSI stock filtering when supplied;
+9. otherwise uses aggregate stock status;
+10. calculates total count;
+11. maps labels, images, prices, discount, and availability.
 
-- `filter`: `MobileProductFilterInput`.
-- `search`: product name/SKU phrase.
-- `pageSize`: default 20, resolver clamps it to 1–50.
-- `currentPage`: one-based page.
-- `sort`: field and `SortEnum` direction.
+The resolver is read-only. It does not modify catalog, inventory, index, quote, or order data.
 
-`MobileProductFilterInput` supports category UID, SKU, brand, country, size, max price, stock requirement, and inventory source code.
+## 10. Context state
 
-`MobileProductSearchResult` contains `total_count` and `items`.
+### Customer context
 
-`MobileProduct` is deliberately a simple mobile DTO rather than Magento `ProductInterface`. This prevents the installed Live Search adapter from intercepting the query.
+File: `src/context/CustomerContext.tsx`
 
-### PHP dependencies
+- `customer` is `Customer | null`.
+- `signIn` calls Magento login and stores the returned customer.
+- `register` calls Magento registration/login.
+- `signOut` clears local customer state.
 
-- `CollectionFactory`: creates the Magento EAV product collection.
-- `StoreManagerInterface`: scopes products and builds media URLs.
-- `ResourceConnection`: resolves inventory table names safely.
-- `Uid`: encodes/decodes GraphQL category and product IDs.
+The token is still memory-only. Production work should store it in a secure native storage library, restore it on startup, and clear both the secure value and GraphQL bearer token during logout.
 
-### `resolve(...)`
+### Cart context
 
-The resolver:
+File: `src/context/CartContext.tsx`
 
-1. normalizes arguments and pagination;
-2. creates a store-scoped product collection;
-3. selects only required product attributes;
-4. filters enabled/catalog-visible products;
-5. decodes `category_uid` and applies category filtering;
-6. applies SKU, search, attribute, and price filters;
-7. allows only `name` or `price` sorting;
-8. applies source-aware stock filtering through `inventory_source_item` when `source_code` exists;
-9. otherwise uses aggregate `cataloginventory_stock_status`;
-10. loads total count;
-11. builds each response object with labels, image URL, final price, regular price, and discount.
+- `addItem` increments or appends a SKU.
+- `changeQuantity` changes quantity with a minimum of one.
+- `removeItem` removes a SKU.
+- `clearCart` empties the local array.
 
-### `label(product, attributeCode)`
+Browsing state is local. `placeOrder` reconciles it with Magento immediately before checkout.
 
-Magento select attributes store option IDs. `label()` retrieves the attribute frontend model and converts stored option IDs into readable labels. Multiselect values are joined with commas.
+### Wishlist context
 
-This resolver is read-only. It does not write products, inventory, indexes, sync feeds, or Catalog Service data.
+File: `src/context/WishlistContext.tsx`
 
-## 11. Pages
+- Stores an array of saved SKUs.
+- `toggle` adds/removes a SKU.
+- `has` tests membership.
 
-### Home — `src/app/index.tsx`
+It is currently local and does not call Magento wishlist mutations.
 
-Route: `/`
+## 11. Request hook
 
-State:
+File: `src/hooks/use-commerce.ts`
 
-- `delivery`: selected delivery label.
+`useCommerce<T>(loader, dependencies)` standardizes loading, error normalization, data storage, retry, and dependency-driven reloads. It is the normal screen boundary for catalog and CMS requests.
 
-Requests:
+## 12. Screens
 
-- `categoryResult = useCommerce(fetchCategories, [])`.
-- `productResult = useCommerce(() => fetchProducts(...), [])`.
-- `bannerResult = useCommerce(fetchHomeBanners, [])`.
+### Home
 
-Sections:
+File: `src/screens/Home/HomeScreen.tsx`
 
-- global `Header`;
-- `DeliverySelector`;
-- pressable `SearchBar`;
-- dynamic primary `HeroBanner`;
-- combined loading/error `RequestState`;
-- horizontal category cards;
-- top product carousel;
-- promotional banner;
-- second product carousel;
-- persistent `BottomTabs`.
+Loads categories, banners, and product selections. It renders delivery choice, search entry, promotional banners, category cards, and product carousels.
 
-Category presses navigate to `/category/[id]` with encoded category UID and readable title.
+### Categories and category/PLP
 
-### Categories — `src/app/categories.tsx`
+Files:
 
-Route: `/categories`
+- `src/screens/Category/CategoriesScreen.tsx`
+- `src/screens/Category/CategoryScreen.tsx`
 
-- Loads `fetchCategories`.
-- `result.data ?? []` prevents undefined mapping.
-- `RequestState` exposes loading, API error, and retry.
-- Each category opens the PLP with `id=category.uid`.
-- `productCount` is currently zero because expensive counts were intentionally excluded.
+The category index loads the Magento tree. Category screen receives `{ id, title? }`, calls `fetchProducts`, and combines Magento filters/sorting with the existing filter and sort modals.
 
-### Product listing — `src/app/category/[id].tsx`
+### Product/PDP
 
-Route: `/category/:id`
+File: `src/screens/Product/ProductScreen.tsx`
 
-URL parameters:
+Receives `{ sku }`, loads the product and recommendations, manages quantity, toggles wishlist state, and adds repeated quantities to the local cart.
 
-- `id`: encoded Magento category UID.
-- `title`: readable category title.
+### Search
 
-State:
+File: `src/screens/Search/SearchScreen.tsx`
 
-- `filterOpen`: controls `FilterModal`.
-- `sortOpen`: controls `SortModal`.
-- `filters`: currently selected brand/country/size/max price.
-- `sort`: selected display label.
+Calls `fetchProducts({ search })`, renders recent suggestions for an empty query, and a product grid for active results.
 
-`sortInput` translates display labels into Magento sort objects. `useCommerce` reloads whenever relevant filter/sort dependencies change. `displayed` performs the remaining size filter locally. The page renders filter/sort controls, request state, product count, `ProductGrid`, modals, and tabs.
+### Cart and checkout
 
-### Search — `src/app/search.tsx`
+Files:
 
-Route: `/search`
+- `src/screens/Cart/CartScreen.tsx`
+- `src/screens/Checkout/CheckoutScreen.tsx`
 
-- `query` contains input text.
-- `fetchProducts({ search: query })` performs Magento name/SKU search.
-- Empty search loads three products for recent/trending presentation.
-- Non-empty search shows result count and `ProductGrid`.
-- Trending tags are presentation-only text in the current version.
+Cart owns coupon preview text and local quantity actions. Checkout maps the local cart into `OrderInput`, calls `placeOrder`, clears local state after success, and navigates to `OrderSuccess`.
 
-### Product detail — `src/app/product/[sku].tsx`
+The current checkout address/phone values and scheduled-slot display are learning defaults. Production checkout must use customer-selected address and API-returned slots.
 
-Route: `/product/:sku`
+### Authentication
 
-State and data:
+Files:
 
-- `sku`: route parameter.
-- `result`: `fetchProduct(sku)`.
-- `related`: first three dynamic products.
-- `quantity`: selected add quantity.
-- `has/toggle`: wishlist state.
+- `src/screens/Login/LoginScreen.tsx`
+- `src/screens/Register/RegisterScreen.tsx`
+- `src/screens/ForgotPassword/ForgotPasswordScreen.tsx`
 
-`add()` calls `addItem(product)` `quantity` times, then navigates to cart. The page renders primary image, discount, wishlist, thumbnail examples, brand/country, prices, quantity selector, add button, description/tasting fields, recommendations, and recently-viewed explanation.
+These screens call customer context or the reset-password service and live under `AuthNavigator`.
 
-### Cart — `src/app/cart.tsx`
+### Account and orders
 
-Route: `/cart`
+Files:
 
-Variables:
+- `src/screens/Account/AccountScreen.tsx`
+- `src/screens/Orders/OrdersScreen.tsx`
+- `src/screens/Orders/OrderDetailsScreen.tsx`
 
-- `items`: local cart items.
-- `coupon`: text input value.
-- `recommendations`: two source-available products.
-- `subtotal`: sum of `price * quantity`.
-- `discount`: learning preview of `SAVE10`; real coupon validation happens during checkout.
+Account changes menu content for guest/customer state. Orders and order details currently contain sample/placeholder presentation; authenticated `customer.orders` data is remaining work.
 
-Each item renders image, pricing, `QuantitySelector`, and remove action. Checkout is disabled when empty. `router.push('/checkout')` opens checkout.
+### Supporting screens
 
-### Checkout — `src/app/checkout.tsx`
+- `OrderSuccessScreen`: renders Magento order result parameters.
+- `WishlistScreen`: filters loaded products against locally saved SKUs.
+- `InfoScreen`: loads Magento CMS identifiers independently.
+- `SeoRouteScreen`: resolves Magento `*.html` routes into category or product views.
 
-Route: `/checkout`
+## 13. Shared components and styling
 
-State:
+All active UI uses React Native `StyleSheet.create`; browser CSS is no longer part of the mobile runtime.
 
-- `delivery`: express/scheduled/collect UI choice.
-- `slot`: selected display slot for scheduled UI.
-- `payment`: card/cash label.
-- `coupon`: coupon submitted to Magento.
-- `busy`: prevents double submission.
-- `error`: exact GraphQL/checkout failure message.
+Important components:
 
-`subtotal` is a local display calculation. `submit()` maps local cart items into `{ sku, quantity }`, supplies the current learning address/phone and selections, then awaits `placeOrder`. On success it clears the local cart and replaces the route with `/order-success` parameters.
+- `Header`: centered title, back navigation, and search action.
+- `SearchBar`: controlled input or pressable search entry.
+- `DeliverySelector`: reports express/scheduled/collection choice.
+- `HeroBanner`: remote banner image or native fallback presentation.
+- `ProductCard` and `ProductGrid`: product navigation, wishlist, availability, price, and add-to-cart behavior.
+- `QuantitySelector`: stateless quantity controls.
+- `FilterModal` and `SortModal`: PLP refinement UI.
+- `OrderSummary`: local display calculation; Magento remains final authority.
+- `RequestState`: spinner, error, and retry handling.
+- `FormField`: shared native form field styling.
+- `SectionTitle`: section heading and optional subtitle.
 
-The nested `Field` component owns its own input text. For a production checkout, lift address/phone state into `Checkout` and use dynamically loaded customer addresses rather than the current display defaults.
+The shared palette is `src/constants/colors.ts`.
 
-### Order success — `src/app/order-success.tsx`
+## 14. Native service boundaries
 
-Route: `/order-success`
+### OneSignal
 
-Parameters:
+File: `src/services/notifications/OneSignalService.ts`
 
-- `number`: real Magento order number.
-- `total`: final cart total.
-- `delivery`: effective delivery code.
+The service centralizes SDK initialization, native permission requests, customer identity, and logout. UI screens should never initialize OneSignal directly.
 
-The page displays the confirmation summary and replaces the route with `/` when continuing shopping.
+Production push still requires OneSignal dashboard configuration, Firebase credentials for Android, APNs credentials/capabilities for iOS, and an iOS notification service extension for rich notifications.
 
-### Login — `src/app/login.tsx`
+### Klaviyo
 
-Route: `/login`
+File: `src/services/klaviyo/KlaviyoService.ts`
 
-State:
+The typed event boundary supports:
 
-- `email`, `password`: controlled form values.
-- `error`: authentication failure.
-- `busy`: button/loading state.
+- Viewed Product
+- Added to Cart
+- Started Checkout
+- Placed Order
+- Active on Site
 
-`submit()` clears previous errors, calls context `signIn`, then replaces the route with `/account`. Errors are normalized for display. The register link opens `/register`.
+The service is initialized at app startup. Product/customer integration points should call this boundary rather than importing the SDK into UI.
 
-### Register — `src/app/register.tsx`
+### Location
 
-Route: `/register`
+File: `src/services/location/LocationService.ts`
 
-State includes first name, last name, email, password, error, and busy. `submit()` calls context `register` and redirects to account. The service performs `createCustomerV2` followed by login.
+Android requests `ACCESS_FINE_LOCATION` at runtime. iOS requests `whenInUse` authorization. `getCurrentPosition` rejects when permission is not granted and uses high-accuracy location with bounded timeout/cache behavior.
 
-### Account — `src/app/account.tsx`
+The native permission declarations are in AndroidManifest and Info.plist.
 
-Route: `/account`
+### Payments
 
-- `customer` determines signed-in versus guest presentation.
-- `items` is a different menu array for each state.
-- Avatar uses the first initial or `A`.
-- Signed-in menu exposes orders, wishlist, and addresses.
-- Guest menu exposes sign-in, registration, and wishlist.
-- `signOut` clears customer context.
+Files:
 
-### Wishlist — `src/app/wishlist.tsx`
+- `src/services/payments/PaymentProvider.ts`
+- `src/services/payments/PaymentService.ts`
 
-Route: `/wishlist`
+`PaymentProvider` defines initialization and authorization inputs/results. `PaymentService` delegates to the selected provider and fails clearly when none is configured. A gateway should be implemented as a provider adapter without coupling checkout UI to its SDK.
 
-- Reads local saved `skus`.
-- Loads up to 100 source-available products.
-- filters results to saved SKUs.
-- shows `ProductGrid` or an empty-state message.
+## 15. Android project and builds
 
-This is a local wishlist demonstration, not Magento wishlist persistence.
+The native Android project includes:
 
-### Orders — `src/app/orders.tsx`
+- `android/app/src/main/AndroidManifest.xml`
+- `android/app/build.gradle`
+- `android/build.gradle`
+- `android/gradle.properties`
+- `android/settings.gradle`
+- Gradle wrapper files
 
-Route: `/orders`
+The manifest currently declares internet, notification, coarse location, fine location, launcher, custom deep link, and placeholder HTTPS App Link configuration.
 
-The current screen is a visual sample order card and explicitly explains that production should load authenticated customer orders. It is not yet connected to the Magento `customer.orders` query.
+Start Metro:
 
-### Information/CMS — `src/app/info.tsx`
+```bash
+npm start
+```
 
-Route: `/info`
+Run on a connected device/emulator:
 
-`identifiers` lists CMS page identifiers. Each `CmsCard` independently calls `fetchCmsPage(identifier)` and renders request state plus cleaned CMS content. Missing Magento identifiers produce their own retryable error without stopping other CMS cards.
+```bash
+npm run android
+```
 
-## 12. Shared components
+Build the debug APK:
 
-### `Header`
+```bash
+npm run android:debug-apk
+```
 
-Props: `title` and `back`. Uses `router.back()` for a back header; otherwise reserves the same left width for centered title alignment. The right action navigates to search.
+Equivalent direct command:
 
-### `BottomTabs`
+```bash
+cd android
+./gradlew clean assembleDebug
+```
 
-Uses `usePathname` to calculate active state and `router.navigate` to switch among Home, Categories, Cart, Account, and Info. Category detail routes activate Categories.
+Output:
 
-### `SearchBar`
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
 
-Wraps a controlled `TextInput`. An uneditable bar navigates to search; editable usage receives `value` and `onChangeText`.
+Release commands:
 
-### `DeliverySelector`
+```bash
+npm run android:release-apk
+npm run android:bundle
+```
 
-Props: selected label and `onSelect`. Renders three pressable options and reports the selected string to its parent.
+Before Play Store submission, configure a private release keystore through local/CI secrets. Never use the generated debug keystore for release signing.
 
-### `HeroBanner`
+## 16. iOS project and builds
 
-Props: `promo`, optional dynamic `title`, and optional image URL. With an image it uses `ImageBackground`; otherwise it uses styled content and emoji fallback.
+The native iOS project contains the Xcode project, Swift AppDelegate, Info.plist, privacy manifest, launch storyboard, and Podfile.
 
-### `ProductCard`
+On macOS:
 
-Props: `product`, optional `compact`.
+```bash
+cd ios
+bundle install
+bundle exec pod install
+open RNLearningNative.xcworkspace
+```
 
-- Card press opens PDP.
-- Heart press stops propagation and toggles wishlist.
-- Plus press stops propagation and adds one item.
-- Displays image, discount, name, metadata, availability, prices, and add action.
+Configure the Apple team, bundle identifier, release signing, Push Notifications, Background Modes/remote notifications, Associated Domains, APNs/OneSignal integration, and any selected payment SDK capabilities.
 
-### `ProductGrid`
+The iOS project was prepared on Ubuntu and has not been compiled with Xcode.
 
-Receives a product array and renders `ProductCard` rows/grid with stable SKU keys.
+## 17. Verification status
 
-### `QuantitySelector`
+The migration was verified with:
 
-Props: quantity, decrease callback, increase callback. It contains no state; the parent owns quantity.
+```bash
+npm install
+npm run typecheck
+npm run lint
+npx react-native doctor
+npm start -- --port 8088
+npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output /tmp/rn-learning-index.android.bundle --assets-dest /tmp/rn-learning-assets
+cd android && ./gradlew clean assembleDebug
+```
 
-### `FilterModal`
+Results:
 
-Exports `Filters`, the PLP filter object. It keeps draft UI choices, allows clear/apply, and reports the selected filter object to the PLP.
+- Dependency installation passed.
+- Strict TypeScript passed.
+- ESLint passed without warnings.
+- Metro started successfully.
+- Android production-mode JavaScript bundle and assets completed.
+- Gradle completed `clean assembleDebug` successfully.
+- Doctor found the JDK, Android SDK, `ANDROID_HOME`, and Gradle. Device/Android Studio checks could not pass in the headless restricted environment.
+- `run-android` was not exercised because no device/emulator was accessible.
+- iOS was not built because Xcode is unavailable on Ubuntu.
 
-### `SortModal`
-
-Exports `SortOption`, the accepted sort-label union. Selecting an option updates the parent and closes the modal.
-
-### `OrderSummary`
-
-Props: subtotal and optional discount. Calculates tax and total for display. Magento remains the authority for final checkout totals.
-
-### `RequestState`
-
-Props: `loading`, `error`, `retry`. Shows an activity spinner, a retryable error, or nothing.
-
-### `FormField`
-
-Combines a label with React Native `TextInputProps`, allowing login/register fields to share styling and behavior.
-
-### `SectionTitle`
-
-Displays a section heading and optional subtitle/count.
-
-## 13. Styling objects
-
-Every page/component uses `StyleSheet.create`. These objects are static React Native style definitions, not runtime state.
-
-Common patterns:
-
-- `safe`: full-screen background and safe-area container.
-- `content`: page padding and scroll bottom spacing.
-- `card`/`item`: white rounded surface.
-- `row`: horizontal flex layout.
-- `primary`/`success`: actions using shared colors.
-- `muted`: secondary labels and metadata.
-- `disabled`: reduced opacity for unavailable actions.
-
-Shared palette is in `src/constants/colors.ts`: primary red, success green, neutral background/surface/borders, muted text, pale status backgrounds, and accent colors.
-
-## 14. End-to-end flows
+## 18. End-to-end flows
 
 ### Browse to cart
 
 ```text
 Home/Categories
-  -> fetchCategories/mobileProducts
-  -> PLP ProductCard
-  -> PDP fetchProduct
+  -> Magento categories/mobileProducts
+  -> Category ProductCard
+  -> Product fetchProduct
   -> CartContext.addItem
-  -> Cart screen
+  -> Cart tab
 ```
 
 ### Authentication
 
 ```text
-Login form
+AuthNavigator Login
   -> CustomerContext.signIn
-  -> loginCustomer
   -> generateCustomerToken
-  -> authenticated customer query
-  -> customer state
+  -> GraphQL bearer token
+  -> authenticated customer
+  -> customer context state
 ```
 
 ### Checkout
 
 ```text
-Local CartContext items
-  -> customerCart
-  -> delivery location/source
-  -> assign source
-  -> reconcile Magento cart
-  -> addresses
-  -> slot
-  -> shipping/payment
-  -> coupon
+Local CartContext
+  -> authenticated customerCart
+  -> delivery location/source assignment
+  -> item reconciliation
+  -> address and delivery slot
+  -> shipping/payment/coupon
   -> placeOrder
-  -> clearCart
-  -> order-success
+  -> clear local cart
+  -> OrderSuccess
 ```
 
-## 15. Known learning-version limitations
+### Native engagement
 
-- Customer tokens are memory-only.
-- Wishlist is local rather than Magento persisted.
-- Orders screen uses a visual fixture rather than `customer.orders`.
-- Cart is local until checkout reconciliation; a production app would keep Magento cart state synchronized after every cart action.
-- Checkout address/phone fields are display-oriented and should be lifted into page state.
-- Category product counts are omitted for performance.
-- CMS identifiers must exist in Magento or each missing card displays an error.
-- Recently viewed is explanatory UI; ANE's recently viewed mutation is not yet connected.
-- PDP related products currently use a general product request rather than Magento relation data.
-- Payment-specific data for hosted/card gateways may require redirect or gateway-specific mutations beyond selecting the payment code.
+```text
+App startup
+  -> OneSignalService.initialize
+  -> KlaviyoService.initialize
 
-These limitations are useful next learning exercises because each one extends an already-defined service/context boundary without redesigning the whole app.
+Feature action
+  -> service abstraction
+  -> native vendor SDK
+```
+
+## 19. Known remaining production work
+
+- Persist and restore Magento customer tokens using secure native storage.
+- Clear the GraphQL bearer token and vendor identities during logout.
+- Synchronize Magento cart state on browsing cart mutations instead of only at checkout.
+- Load real customer orders and complete order details.
+- Persist wishlist through Magento for signed-in customers.
+- Replace demonstration address, phone, and slot values with API/customer state.
+- Connect Klaviyo events at the relevant product/cart/checkout lifecycle points.
+- Decide when to present OneSignal notification permission rather than prompting automatically.
+- Add OneSignal/Firebase/APNs production credentials and iOS extension/capabilities.
+- Select and implement the native payment gateway adapter.
+- Replace placeholder verified-link domains and host association files.
+- Configure release signing, application IDs/bundle IDs, icons, splash assets, versioning, and CI/CD.
+- Review npm's reported transitive dependency audit findings without using a breaking forced upgrade.
+
+These items fit the established service, context, navigation, and native project boundaries and do not require another architectural rewrite.

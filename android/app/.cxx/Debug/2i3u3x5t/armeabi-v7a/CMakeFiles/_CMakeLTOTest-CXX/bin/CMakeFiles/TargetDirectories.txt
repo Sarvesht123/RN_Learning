@@ -1,0 +1,4 @@
+/home/sarvesht/RN_Learning/android/app/.cxx/Debug/2i3u3x5t/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/foo.dir
+/home/sarvesht/RN_Learning/android/app/.cxx/Debug/2i3u3x5t/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/boo.dir
+/home/sarvesht/RN_Learning/android/app/.cxx/Debug/2i3u3x5t/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/edit_cache.dir
+/home/sarvesht/RN_Learning/android/app/.cxx/Debug/2i3u3x5t/armeabi-v7a/CMakeFiles/_CMakeLTOTest-CXX/bin/CMakeFiles/rebuild_cache.dir

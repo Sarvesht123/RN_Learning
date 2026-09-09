@@ -1,5 +1,5 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/navigation/router';
 import { Product } from '@/data/products';
 import { colors } from '@/constants/colors';
 import { useCart } from '@/context/CartContext';

@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/navigation/router';
 import { colors } from '@/constants/colors';
 export function Header({ title = 'A+E', back = false }: { title?: string; back?: boolean }) {
   const router = useRouter();

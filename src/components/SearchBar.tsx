@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter } from '@/navigation/router';
 import { colors } from '@/constants/colors';
 export function SearchBar({
   value,
